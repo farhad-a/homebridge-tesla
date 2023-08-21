@@ -43,7 +43,7 @@ export class TeslaApi extends EventEmitter<TeslaApiEvents> {
     const unlock = await lock("getOptions", 20_000);
 
     if (!unlock) {
-      this.log("Failed to acquire lock for getOptions");
+      this.log.error("Failed to acquire lock for getOptions");
       throw new Error("Failed to acquire lock for getOptions");
     }
 
@@ -55,7 +55,7 @@ export class TeslaApi extends EventEmitter<TeslaApiEvents> {
       const cacheAge = Date.now() - this.lastOptionsTime;
 
       if (cacheAge < 2500 && !ignoreCache && this.lastOptions) {
-        // this.log("Using just-cached options data.");
+        this.log.debug("Using just-cached options data.");
         return this.lastOptions;
       }
 
@@ -64,7 +64,7 @@ export class TeslaApi extends EventEmitter<TeslaApiEvents> {
 
       const options = { authToken, vehicleID, isOnline: state === "online" };
 
-      this.log(`Tesla reports vehicle is ${state}.`);
+      this.log.info(`Tesla reports vehicle is ${state}.`);
 
       // Cache the state.
       this.lastOptions = options;
@@ -97,7 +97,7 @@ export class TeslaApi extends EventEmitter<TeslaApiEvents> {
         return authToken;
       }
 
-      this.log("Exchanging refresh token for an access token…");
+      this.log.info("Exchanging refresh token for an access token…");
       const china = this.config.china;
       const response = await getAccessToken(refreshToken, { china });
 
@@ -111,12 +111,12 @@ export class TeslaApi extends EventEmitter<TeslaApiEvents> {
       }
 
       // Save it in memory for future API calls.
-      this.log("Got an access token.");
+      this.log.info("Got an access token.");
       this.authToken = response.access_token;
       this.authTokenExpires = response.expires_in * 1000 + Date.now() - 10000; // 10 second slop
       return response.access_token;
     } catch (error: any) {
-      this.log("Error while getting an access token:", error.message);
+      this.log.error("Error while getting an access token:", error.message);
       this.authTokenError = error;
       throw error;
     } finally {
@@ -138,19 +138,19 @@ export class TeslaApi extends EventEmitter<TeslaApiEvents> {
     const vehicle = vehicles.find((v) => v.vin === vin);
 
     if (!vehicle) {
-      this.log(
+      this.log.warn(
         "No vehicles were found matching the VIN ${vin} entered in your config.json. Available vehicles:",
       );
       for (const vehicle of vehicles) {
-        this.log(`${vehicle.vin} [${vehicle.display_name}]`);
+        this.log.warn(`${vehicle.vin} [${vehicle.display_name}]`);
       }
 
       throw new Error(`Couldn't find vehicle with VIN ${vin}.`);
     }
 
-    // this.log(
-    //   `Using vehicle "${vehicle.display_name}" with state "${vehicle.state}"`,
-    // );
+    this.log.debug(
+      `Using vehicle "${vehicle.display_name}" with state "${vehicle.state}"`,
+    );
 
     return vehicle;
   };
@@ -158,11 +158,11 @@ export class TeslaApi extends EventEmitter<TeslaApiEvents> {
   wakeUp = async (options: TeslaJSOptions) => {
     // Is the car online already?
     if (options.isOnline) {
-      this.log("Vehicle is online.");
+      this.log.info("Vehicle is online.");
       return;
     }
 
-    this.log("Sending wakeup command…");
+    this.log.info("Sending wakeup command…");
 
     // Send the command.
     await api("wakeUp", options);
@@ -178,11 +178,11 @@ export class TeslaApi extends EventEmitter<TeslaApiEvents> {
 
       if (state === "online") {
         // Success!
-        this.log("Vehicle is now online.");
+        this.log.info("Vehicle is now online.");
         return;
       }
 
-      this.log("Waiting for vehicle to wake up...");
+      this.log.info("Waiting for vehicle to wake up...");
       await wait(waitTime);
 
       // Use exponential backoff with a max wait of 5 seconds.
@@ -199,7 +199,7 @@ export class TeslaApi extends EventEmitter<TeslaApiEvents> {
     const unlock = await lock("getVehicleData", 20_000);
 
     if (!unlock) {
-      this.log("Failed to acquire lock for getVehicleData");
+      this.log.error("Failed to acquire lock for getVehicleData");
       return null;
     }
 
@@ -208,7 +208,7 @@ export class TeslaApi extends EventEmitter<TeslaApiEvents> {
       const cacheAge = Date.now() - this.lastVehicleDataTime;
 
       if (cacheAge < 2500 && !ignoreCache) {
-        // this.log("Using just-cached vehicle data.");
+        this.log.debug("Using just-cached vehicle data.");
         return this.lastVehicleData;
       }
 
@@ -220,7 +220,7 @@ export class TeslaApi extends EventEmitter<TeslaApiEvents> {
           return null;
         }
 
-        this.log(
+        this.log.info(
           `Vehicle is not online; using ${
             this.lastVehicleData ? "last known" : "default"
           } state.`,
@@ -235,7 +235,7 @@ export class TeslaApi extends EventEmitter<TeslaApiEvents> {
       }
 
       // Get the latest data from Tesla.
-      this.log(
+      this.log.info(
         `Getting latest vehicle data from Tesla${
           ignoreCache ? " (forced update)" : ""
         }…`,
@@ -252,7 +252,7 @@ export class TeslaApi extends EventEmitter<TeslaApiEvents> {
         return null;
       }
 
-      this.log("Vehicle data updated.");
+      this.log.info("Vehicle data updated.");
 
       // Cache the state.
       this.lastVehicleData = data;
@@ -300,7 +300,7 @@ export class TeslaApi extends EventEmitter<TeslaApiEvents> {
         // a command.
         await this.getVehicleData({ ignoreCache: true });
       } catch (error: any) {
-        this.log("Error while executing command:", error.message);
+        this.log.error("Error while executing command:", error.message);
       } finally {
         this.commandsRunning--;
       }
